@@ -185,7 +185,7 @@
 
       <div class="field">
         <label for="phone">Phone number *</label>
-        <input type="tel" id="phone" name="phone" required autocomplete="tel">
+        <input type="tel" id="phone" name="phone" required autocomplete="tel" pattern="^[0-9+\(\)\-\s]{7,20}$" title="Enter a valid phone number (digits, spaces, +, -, ( ) only)">
       </div>
 
       <div class="field">
@@ -231,6 +231,10 @@
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
       if (!captchaResponse()) {
         refreshCaptchaState();
         return;
