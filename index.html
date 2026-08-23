@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<!-- saved from url=(0047)file:///Users/jimdemaala/Downloads/index_1.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tipolo — Under Construction</title>
+<title>Tipolo Design Studio — Under Construction</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{
     height:100%;
   }
   body{
+    min-height:100%;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -20,12 +21,31 @@
     padding:24px;
   }
   .card{
-    max-width:420px;
+    max-width:460px;
+    width:100%;
+    padding:40px 0;
+  }
+  .tag{
+    font-size:34px;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+    color:#242A20;
+    margin-bottom:14px;
+    font-weight:700;
+    line-height:1.2;
+  }
+  .tagline{
+    font-size:14px;
+    color:#565C4E;
+    letter-spacing:0.01em;
+    margin-bottom:28px;
+    line-height:1.5;
   }
   h1{
-    font-size:28px;
-    font-weight:600;
-    letter-spacing:-0.01em;
+    font-size:18px;
+    font-weight:500;
+    letter-spacing:-0.005em;
+    color:#565C4E;
     margin-bottom:16px;
   }
   p{
@@ -35,30 +55,222 @@
     margin-bottom:28px;
   }
   a{
-    color:#242A20;
+    color:#5C6B2F;
     font-weight:600;
     text-decoration:none;
-    border-bottom:2px solid #B5602F;
+    border-bottom:2px solid #5C6B2F;
   }
   a:hover{
+    color:#3E4A1F;
+  }
+  form{
+    text-align:left;
+    margin-top:8px;
+  }
+  .field{
+    margin-bottom:16px;
+  }
+  label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    color:#242A20;
+    margin-bottom:6px;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  textarea{
+    width:100%;
+    font-family:inherit;
+    font-size:15px;
+    color:#242A20;
+    background:#FFFFFF;
+    border:1px solid #D8D3C4;
+    border-radius:8px;
+    padding:11px 12px;
+    outline:none;
+    transition:border-color 0.15s ease;
+  }
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="tel"]:focus,
+  textarea:focus{
+    border-color:#5C6B2F;
+  }
+  textarea{
+    min-height:96px;
+    resize:vertical;
+  }
+  .h-captcha{
+    margin-bottom:16px;
+    display:flex;
+    justify-content:center;
+  }
+  button[type="submit"]{
+    width:100%;
+    font-family:inherit;
+    font-size:15px;
+    font-weight:600;
+    color:#F5F2E9;
+    background:#5C6B2F;
+    border:none;
+    border-radius:8px;
+    padding:13px 12px;
+    cursor:pointer;
+    transition:background 0.15s ease;
+  }
+  button[type="submit"]:hover{
+    background:#3E4A1F;
+  }
+  button[type="submit"]:disabled{
+    opacity:0.6;
+    cursor:not-allowed;
+  }
+  .form-note{
+    font-size:12px;
+    color:#7C8A6B;
+    margin-top:12px;
+    margin-bottom:0;
+    line-height:1.5;
+  }
+  .status-msg{
+    display:none;
+    font-size:14px;
+    line-height:1.6;
+    padding:14px 16px;
+    border-radius:8px;
+    margin-top:16px;
+    text-align:left;
+  }
+  .status-msg.success{
+    background:#E7EDE0;
+    color:#3F4B33;
+  }
+  .status-msg.error{
+    background:#F5E3DC;
     color:#7A3F1D;
   }
-  .tag{
-    font-size:12px;
-    letter-spacing:0.08em;
-    text-transform:uppercase;
-    color:#7C8A6B;
-    margin-bottom:12px;
+  .divider{
+    height:1px;
+    background:#DCD7C9;
+    margin:32px 0;
+  }
+  .contact-line{
+    font-size:14px;
+    color:#565C4E;
   }
 </style>
 </head>
 <body>
   <div class="card">
-    <div class="tag" style="font-size:13px;letter-spacing:0.12em;margin-bottom:28px;">TIPOLO DESIGN STUDIO</div>
+    <div class="tag">Tipolo Design Studio</div>
+    <div class="tagline">Residential Landscape Design Services<br>Serving Metro Vancouver &amp; Fraser Valley</div>
     <h1>We're under construction</h1>
-    <p>Our website is on its way. In the meantime, get in touch and we'll be happy to help.</p>
-    <a href="mailto:hello@tipolo.ca">hello@tipolo.ca</a>
+    <p>Our website is on its way. In the meantime, send us a quick inquiry below and we'll be happy to help.</p>
+
+    <form id="inquiry-form" action="https://api.web3forms.com/submit" method="POST">
+      <input type="hidden" name="access_key" value="YOUR_WEB3FORMS_ACCESS_KEY">
+      <input type="hidden" name="subject" value="New inquiry from tipolo.ca">
+      <input type="hidden" name="from_name" value="Tipolo Design Studio Website">
+      <input type="checkbox" name="botcheck" style="display:none" tabindex="-1" autocomplete="off">
+
+      <div class="field">
+        <label for="name">Name *</label>
+        <input type="text" id="name" name="name" required autocomplete="name">
+      </div>
+
+      <div class="field">
+        <label for="email">Email *</label>
+        <input type="email" id="email" name="email" required autocomplete="email">
+      </div>
+
+      <div class="field">
+        <label for="phone">Phone number *</label>
+        <input type="tel" id="phone" name="phone" required autocomplete="tel">
+      </div>
+
+      <div class="field">
+        <label for="message">Brief description of inquiry *</label>
+        <textarea id="message" name="message" required placeholder="A sentence or two about your project"></textarea>
+      </div>
+
+      <div class="h-captcha" data-captcha="true"></div>
+
+      <button type="submit" id="submit-btn" disabled>Send inquiry</button>
+
+      <p class="form-note" id="captcha-hint">Please complete the verification above to enable sending.</p>
+
+      <div class="status-msg success" id="status-success">Thanks — your inquiry has been sent. We'll be in touch soon.</div>
+      <div class="status-msg error" id="status-error">Something went wrong sending your inquiry. Please try again, or email us directly below.</div>
+    </form>
+
+    <div class="divider"></div>
+    <div class="contact-line">Prefer email? Reach us at <a href="mailto:hello@tipolo.ca">hello@tipolo.ca</a></div>
   </div>
 
+  <script src="https://web3forms.com/client/script.js" async defer></script>
+  <script>
+    const form = document.getElementById('inquiry-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const successMsg = document.getElementById('status-success');
+    const errorMsg = document.getElementById('status-error');
+    const captchaHint = document.getElementById('captcha-hint');
 
-</body></html>
+    function captchaResponse() {
+      const field = form.querySelector('textarea[name="h-captcha-response"], input[name="h-captcha-response"]');
+      return field ? field.value : '';
+    }
+
+    let sending = false;
+    function refreshCaptchaState() {
+      if (sending) return;
+      const solved = captchaResponse().length > 0;
+      submitBtn.disabled = !solved;
+      captchaHint.style.display = solved ? 'none' : 'block';
+    }
+    setInterval(refreshCaptchaState, 400);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!captchaResponse()) {
+        refreshCaptchaState();
+        return;
+      }
+      successMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
+      sending = true;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending…';
+
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+      payload.access_key = form.access_key.value;
+
+      fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success) {
+            form.reset();
+            if (window.hcaptcha) { window.hcaptcha.reset(); }
+            successMsg.style.display = 'block';
+          } else {
+            errorMsg.style.display = 'block';
+          }
+        })
+        .catch(() => {
+          errorMsg.style.display = 'block';
+        })
+        .finally(() => {
+          sending = false;
+          submitBtn.textContent = 'Send inquiry';
+          refreshCaptchaState();
+        });
+    });
+  </script>
+</body>
+</html>
