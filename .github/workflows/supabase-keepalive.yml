@@ -1,0 +1,95 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    # 07:23 UTC, daily. Supabase pauses free projects after ~7 days of no
+    # activity. Daily leaves plenty of margin, because GitHub's scheduler
+    # delays or drops runs when it is under load.
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Touch the keepalive row
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_KEY:-}" ]; then
+            echo "::error::Repository secrets SUPABASE_URL and SUPABASE_KEY must both be set (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+
+          now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          body="$(printf '{"last_seen":"%s"}' "$now")"
+          code=""
+
+          for attempt in 1 2 3; do
+            : > /tmp/resp.json
+            code="$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+              -X PATCH "${SUPABASE_URL%/}/rest/v1/keepalive?id=eq.1" \
+              -H "apikey: ${SUPABASE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_KEY}" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=representation" \
+              --data "$body")" || code="000"
+
+            if [ "$code" = "200" ]; then
+              if grep -q '"last_seen"' /tmp/resp.json; then
+                echo "Supabase acknowledged the write at ${now}."
+                cat /tmp/resp.json
+                exit 0
+              fi
+              echo "::error::HTTP 200 but no row was updated. Run .github/keepalive/keepalive.sql in the Supabase SQL editor: the table needs a row with id = 1, and the RLS update policy must allow this key."
+              cat /tmp/resp.json || true
+              exit 1
+            fi
+
+            echo "Attempt ${attempt} failed with HTTP ${code}:"
+            cat /tmp/resp.json || true
+
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 10))
+            fi
+          done
+
+          echo "::error::Could not reach Supabase after 3 attempts (last HTTP ${code}). If the project is already paused, restore it from the dashboard first - this workflow prevents pausing, it cannot undo it."
+          exit 1
+
+      - name: Keep this repository active
+        # Runs even when the ping fails. GitHub disables scheduled workflows in
+        # a repository with no activity for 60 days, which would silently stop
+        # the keepalive; a commit per run resets that clock. The timestamp file
+        # lives under .github/ so GitHub Pages does not publish it, and pushes
+        # made with GITHUB_TOKEN do not trigger workflows, so this cannot loop.
+        if: always()
+        run: |
+          set -euo pipefail
+
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/keepalive/last-run.txt
+
+          if [ -z "$(git status --porcelain .github/keepalive/last-run.txt)" ]; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive/last-run.txt
+          git commit -m "chore: supabase keepalive run $(cat .github/keepalive/last-run.txt)"
+          git push
