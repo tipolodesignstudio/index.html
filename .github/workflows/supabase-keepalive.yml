@@ -30,8 +30,42 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_KEY:-}" ]; then
+          url="${SUPABASE_URL:-}"
+          key="${SUPABASE_KEY:-}"
+
+          # A value pasted into the secrets box often carries a trailing
+          # newline or a stray space. curl rejects that as "Bad hostname",
+          # and the masked log gives no hint why, so normalise it here.
+          url="$(printf '%s' "$url" | tr -d '[:space:]')"
+          key="$(printf '%s' "$key" | tr -d '[:space:]')"
+
+          if [ -z "$url" ] || [ -z "$key" ]; then
             echo "::error::Repository secrets SUPABASE_URL and SUPABASE_KEY must both be set (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+
+          # Accept a dashboard link in place of the API host.
+          case "$url" in
+            */dashboard/project/*)
+              ref="${url##*/project/}"
+              ref="${ref%%/*}"
+              url="https://${ref}.supabase.co"
+              echo "SUPABASE_URL looked like a dashboard link; using the project API host instead."
+              ;;
+          esac
+
+          # Accept a bare host, or a bare project ref.
+          case "$url" in
+            http://*|https://*) ;;
+            *.*) url="https://${url}" ;;
+            *)   url="https://${url}.supabase.co" ;;
+          esac
+
+          url="${url%/}"
+
+          if ! printf '%s' "$url" | grep -Eq '^https://[A-Za-z0-9.-]+$'; then
+            echo "::error::SUPABASE_URL is not a plain https host. Expected https://<project-ref>.supabase.co - copy it from Supabase dashboard -> Project Settings -> Data API -> Project URL."
+            echo "Diagnostics (no secret values are printed): normalised length ${#url}, ends in .supabase.co: $(case "$url" in *.supabase.co) echo yes ;; *) echo no ;; esac)"
             exit 1
           fi
 
@@ -42,9 +76,9 @@ jobs:
           for attempt in 1 2 3; do
             : > /tmp/resp.json
             code="$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
-              -X PATCH "${SUPABASE_URL%/}/rest/v1/keepalive?id=eq.1" \
-              -H "apikey: ${SUPABASE_KEY}" \
-              -H "Authorization: Bearer ${SUPABASE_KEY}" \
+              -X PATCH "${url}/rest/v1/keepalive?id=eq.1" \
+              -H "apikey: ${key}" \
+              -H "Authorization: Bearer ${key}" \
               -H "Content-Type: application/json" \
               -H "Prefer: return=representation" \
               --data "$body")" || code="000"
@@ -56,6 +90,19 @@ jobs:
                 exit 0
               fi
               echo "::error::HTTP 200 but no row was updated. Run .github/keepalive/keepalive.sql in the Supabase SQL editor: the table needs a row with id = 1, and the RLS update policy must allow this key."
+              cat /tmp/resp.json || true
+              exit 1
+            fi
+
+            # A bad key, URL or schema will not fix itself on retry.
+            if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+              echo "::error::HTTP ${code} - SUPABASE_KEY is wrong, rotated, or is not the anon/publishable key."
+              cat /tmp/resp.json || true
+              exit 1
+            fi
+
+            if [ "$code" = "404" ]; then
+              echo "::error::HTTP 404 - the keepalive table was not found. Run .github/keepalive/keepalive.sql in the Supabase SQL editor, and check SUPABASE_URL points at the right project."
               cat /tmp/resp.json || true
               exit 1
             fi
