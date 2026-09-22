@@ -30,12 +30,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Deliberately no example hostname appears in any message below.
+          # An example that looks real is too easy to paste in by mistake.
+          help="Open https://supabase.com/dashboard and click your project. The ref is the segment after /project/ in the address bar. Project Settings -> Data API -> Project URL shows the full host, ready to copy."
+
           url="${SUPABASE_URL:-}"
           key="${SUPABASE_KEY:-}"
 
-          # A value pasted into the secrets box often carries a trailing
-          # newline or a stray space. curl rejects that as "Bad hostname",
-          # and the masked log gives no hint why, so normalise it here.
+          # A pasted value often carries a trailing newline or stray spaces.
           url="$(printf '%s' "$url" | tr -d '[:space:]')"
           key="$(printf '%s' "$key" | tr -d '[:space:]')"
 
@@ -63,33 +65,54 @@ jobs:
 
           url="${url%/}"
 
-          # Catch the docs placeholder being pasted in verbatim.
           case "${url}${key}" in
             *"<"*|*">"*)
-              echo "::error::A secret still contains placeholder text (angle brackets). Replace <project-ref> with your real project ref: Supabase dashboard -> Project Settings -> Data API -> Project URL, which looks like https://abcdefghijklmnopqrst.supabase.co"
+              echo "::error::A secret still contains placeholder text in angle brackets. ${help}"
+              exit 1
+              ;;
+          esac
+
+          # Example values that have been pasted in verbatim before.
+          case "$url" in
+            *abcdefghijklmnopqrst*|*project-ref*|*your-project*|*yourproject*|*example*|*xxxx*)
+              echo "::error::SUPABASE_URL is an example value, not a real project ref. ${help}"
               exit 1
               ;;
           esac
 
           if ! printf '%s' "$url" | grep -Eq '^https://[A-Za-z0-9.-]+$'; then
-            echo "::error::SUPABASE_URL is not a plain https host. Expected https://<project-ref>.supabase.co - copy it from Supabase dashboard -> Project Settings -> Data API -> Project URL."
-            echo "Diagnostics (no secret values are printed): normalised length ${#url}, ends in .supabase.co: $(case "$url" in *.supabase.co) echo yes ;; *) echo no ;; esac)"
+            echo "::error::SUPABASE_URL is not a plain https host. ${help}"
+            echo "Diagnostics (no secret values are printed): normalised length ${#url}"
             exit 1
           fi
 
           now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           body="$(printf '{"last_seen":"%s"}' "$now")"
           code=""
+          rc=0
 
           for attempt in 1 2 3; do
             : > /tmp/resp.json
+            : > /tmp/curl.err
+
+            set +e
             code="$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
               -X PATCH "${url}/rest/v1/keepalive?id=eq.1" \
               -H "apikey: ${key}" \
               -H "Authorization: Bearer ${key}" \
               -H "Content-Type: application/json" \
               -H "Prefer: return=representation" \
-              --data "$body")" || code="000"
+              --data "$body" 2>/tmp/curl.err)"
+            rc=$?
+            set -e
+
+            # curl 6 is a DNS failure. A paused project still resolves, so this
+            # means the project ref is wrong rather than the project asleep.
+            if [ "$rc" -eq 6 ]; then
+              echo "::error::The host in SUPABASE_URL does not exist in DNS, so the project ref is wrong. This is not a paused project - a paused project still resolves. ${help}"
+              cat /tmp/curl.err || true
+              exit 1
+            fi
 
             if [ "$code" = "200" ]; then
               if grep -q '"last_seen"' /tmp/resp.json; then
@@ -115,7 +138,8 @@ jobs:
               exit 1
             fi
 
-            echo "Attempt ${attempt} failed with HTTP ${code}:"
+            echo "Attempt ${attempt} failed with HTTP ${code} (curl exit ${rc}):"
+            cat /tmp/curl.err || true
             cat /tmp/resp.json || true
 
             if [ "$attempt" -lt 3 ]; then
@@ -123,7 +147,7 @@ jobs:
             fi
           done
 
-          echo "::error::Could not reach Supabase after 3 attempts (last HTTP ${code}). If the project is already paused, restore it from the dashboard first - this workflow prevents pausing, it cannot undo it."
+          echo "::error::Could not reach Supabase after 3 attempts (last HTTP ${code}, curl exit ${rc}). If the project is paused, restore it from the dashboard first - this workflow prevents pausing, it cannot undo it."
           exit 1
 
       - name: Keep this repository active
