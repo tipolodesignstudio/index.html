@@ -63,6 +63,14 @@ jobs:
 
           url="${url%/}"
 
+          # Catch the docs placeholder being pasted in verbatim.
+          case "${url}${key}" in
+            *"<"*|*">"*)
+              echo "::error::A secret still contains placeholder text (angle brackets). Replace <project-ref> with your real project ref: Supabase dashboard -> Project Settings -> Data API -> Project URL, which looks like https://abcdefghijklmnopqrst.supabase.co"
+              exit 1
+              ;;
+          esac
+
           if ! printf '%s' "$url" | grep -Eq '^https://[A-Za-z0-9.-]+$'; then
             echo "::error::SUPABASE_URL is not a plain https host. Expected https://<project-ref>.supabase.co - copy it from Supabase dashboard -> Project Settings -> Data API -> Project URL."
             echo "Diagnostics (no secret values are printed): normalised length ${#url}, ends in .supabase.co: $(case "$url" in *.supabase.co) echo yes ;; *) echo no ;; esac)"
