@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Usage Monitor</title>
+<style>
+  :root{
+    color-scheme:light;
+    --surface-0:#f5f4f0;
+    --surface-1:#fcfcfb;
+    --border:#e3e1da;
+    --grid:#ecebe6;
+    --text-primary:#0b0b0b;
+    --text-secondary:#52514e;
+    --text-muted:#7a7872;
+    --series-1:#2a78d6;
+    --good:#0ca30c;
+    --critical:#d03b3b;
+    --hover:#f0efec;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --surface-0:#121211;
+      --surface-1:#1a1a19;
+      --border:#2e2e2c;
+      --grid:#262624;
+      --text-primary:#ffffff;
+      --text-secondary:#c3c2b7;
+      --text-muted:#8f8e86;
+      --series-1:#3987e5;
+      --hover:#232322;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --surface-0:#121211;
+    --surface-1:#1a1a19;
+    --border:#2e2e2c;
+    --grid:#262624;
+    --text-primary:#ffffff;
+    --text-secondary:#c3c2b7;
+    --text-muted:#8f8e86;
+    --series-1:#3987e5;
+    --hover:#232322;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--surface-0);
+    color:var(--text-primary);
+    font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding:24px 16px 48px;
+  }
+  main{max-width:1120px;margin:0 auto;display:grid;gap:16px;}
+  .num{font-variant-numeric:tabular-nums;}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;}
+  h1{font-size:20px;font-weight:600;letter-spacing:-0.01em;}
+  h2{font-size:14px;font-weight:600;}
+  .status{display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:13px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);flex:none;}
+  .dot.live{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent);}
+  .dot.down{background:var(--critical);}
+  .panel{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px;min-width:0;}
+  .panel-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;}
+  .sub{color:var(--text-muted);font-size:12px;}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;}
+  .tile .label{color:var(--text-secondary);font-size:13px;}
+  .tile .value{font-size:28px;font-weight:600;letter-spacing:-0.02em;margin-top:4px;}
+  .tile .meta{color:var(--text-muted);font-size:12px;margin-top:2px;}
+  .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;}
+  .chart{position:relative;}
+  .chart svg{display:block;width:100%;height:auto;overflow:visible;}
+  .axis text{fill:var(--text-muted);font-size:11px;}
+  .gridline{stroke:var(--grid);stroke-width:1;}
+  .bar{fill:var(--series-1);}
+  .hit{fill:transparent;cursor:crosshair;}
+  .hit:hover{fill:var(--hover);}
+  .tooltip{
+    position:absolute;pointer-events:none;background:var(--surface-1);border:1px solid var(--border);
+    border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 16px rgb(0 0 0 / .12);
+    white-space:nowrap;opacity:0;transition:opacity .1s;z-index:2;
+  }
+  .tooltip b{display:block;margin-bottom:2px;}
+  .tooltip .row{display:flex;justify-content:space-between;gap:16px;color:var(--text-secondary);}
+  .tooltip .row span:last-child{color:var(--text-primary);}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .seg button{
+    font:inherit;font-size:13px;padding:4px 12px;background:transparent;color:var(--text-secondary);
+    border:0;cursor:pointer;
+  }
+  .seg button[aria-pressed="true"]{background:var(--hover);color:var(--text-primary);font-weight:600;}
+  .table-wrap{overflow-x:auto;margin:0 -16px;padding:0 16px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{color:var(--text-muted);font-weight:500;text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{text-align:right;padding:10px 8px;border-bottom:1px solid var(--grid);white-space:nowrap;vertical-align:middle;}
+  th:first-child,td:first-child{text-align:left;padding-left:0;}
+  th:last-child,td:last-child{padding-right:0;}
+  tr:last-child td{border-bottom:0;}
+  .sess{display:flex;gap:10px;align-items:flex-start;min-width:240px;max-width:380px;white-space:normal;}
+  .sess .dot{margin-top:6px;}
+  .sess-title{font-weight:500;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .sess-meta{color:var(--text-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;}
+  .muted{color:var(--text-muted);}
+  .spark{display:block;}
+  .spark path{fill:none;stroke:var(--series-1);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;}
+  .spark .area{fill:color-mix(in srgb,var(--series-1) 15%,transparent);stroke:none;}
+  .empty{color:var(--text-muted);padding:24px 0;text-align:center;}
+  footer{color:var(--text-muted);font-size:12px;line-height:1.6;}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Claude usage</h1>
+    <div class="status"><span id="dot" class="dot"></span><span id="status">Connecting…</span></div>
+  </header>
+
+  <section class="tiles" aria-label="Summary">
+    <div class="panel tile"><div class="label">Active sessions</div><div class="value num" id="t-active">–</div><div class="meta" id="t-active-meta">&nbsp;</div></div>
+    <div class="panel tile"><div class="label">Tokens today</div><div class="value num" id="t-today">–</div><div class="meta num" id="t-today-meta">&nbsp;</div></div>
+    <div class="panel tile"><div class="label">Last 5 hours</div><div class="value num" id="t-5h">–</div><div class="meta num" id="t-5h-meta">&nbsp;</div></div>
+    <div class="panel tile"><div class="label">Burn rate now</div><div class="value num" id="t-burn">–</div><div class="meta">tokens / min, last 5 min</div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Tokens per minute — last 60 minutes</h2><span class="sub">all sessions, including cache reads</span></div>
+    <div class="chart" id="minute-chart"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Sessions</h2>
+      <div class="seg" role="group" aria-label="Filter sessions">
+        <button type="button" data-filter="active" aria-pressed="true">Active</button>
+        <button type="button" data-filter="today" aria-pressed="false">Today</button>
+        <button type="button" data-filter="all" aria-pressed="false">All</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Session</th><th>Last 30 min</th><th>Burn / min</th><th>Input</th><th>Output</th>
+          <th>Cache read</th><th>Cache write</th><th>Total</th><th>Est. cost</th>
+        </tr></thead>
+        <tbody id="sessions"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <div class="panel-head"><h2>Daily tokens — last 14 days</h2></div>
+      <div class="chart" id="day-chart"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>By model</h2><span class="sub">tracked history</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Model</th><th>Output</th><th>Total</th><th>Est. cost</th></tr></thead>
+          <tbody id="models"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <footer id="footer"></footer>
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const tooltip = $('tooltip');
+  let data = null;
+  let filter = 'active';
+  try { filter = localStorage.getItem('claude-usage-filter') || filter; } catch {}
+
+  const fmt = (n) => {
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k';
+    return String(Math.round(n));
+  };
+  const full = (n) => Math.round(n).toLocaleString();
+  const usd = (n) => '$' + (n >= 100 ? n.toFixed(0) : n.toFixed(2));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ago = (t) => {
+    const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    if (s < 86400) return Math.round(s / 3600) + 'h ago';
+    return Math.round(s / 86400) + 'd ago';
+  };
+  const shortPath = (p) => p.split(/[\\/]/).filter(Boolean).slice(-2).join('/');
+
+  // Tooltip helpers
+  function showTip(evt, html) {
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = 1;
+    const pad = 12, w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+    let x = evt.pageX + pad, y = evt.pageY - h - pad;
+    if (x + w > window.scrollX + document.documentElement.clientWidth - 8) x = evt.pageX - w - pad;
+    if (y < window.scrollY + 8) y = evt.pageY + pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  const hideTip = () => { tooltip.style.opacity = 0; };
+  const rows = (pairs) => pairs.map(([k, v]) => `<div class="row"><span>${k}</span><span class="num">${v}</span></div>`).join('');
+
+  // Bar chart: single series, rounded data-ends anchored to the baseline, per-bar hover.
+  function barChart(el, items, { height = 180, snap = 1, label, tip }) {
+    const W = Math.max(280, el.clientWidth || 600), H = height;
+    const m = { t: 8, r: 0, b: 22, l: 44 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const max = Math.max(1, ...items.map((d) => d.v));
+    const niceMax = niceCeil(max);
+    const step = iw / items.length, gap = Math.min(2, step * 0.25), bw = Math.max(1, step - gap);
+    const y = (v) => ih - (v / niceMax) * ih;
+    // Label every Nth bar counting back from the newest, keeping ~56px between labels.
+    const every = Math.ceil(Math.ceil(56 / step) / snap) * snap;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><g transform="translate(${m.l},${m.t})">`;
+    for (let i = 0; i <= 3; i++) {
+      const v = (niceMax / 3) * i, yy = y(v);
+      s += `<line class="gridline" x1="0" x2="${iw}" y1="${yy}" y2="${yy}"/>`;
+      s += `<g class="axis"><text x="-8" y="${yy + 4}" text-anchor="end">${fmt(v)}</text></g>`;
+    }
+    items.forEach((d, i) => {
+      const x = i * step + gap / 2, h = ih - y(d.v);
+      if (h > 0) {
+        const r = Math.min(4, bw / 2, h);
+        s += `<path class="bar" d="M${x},${ih}V${ih - h + r}q0,-${r} ${r},-${r}h${bw - 2 * r}q${r},0 ${r},${r}V${ih}Z"/>`;
+      }
+      if ((items.length - 1 - i) % every === 0) s += `<g class="axis"><text x="${x + bw / 2}" y="${ih + 16}" text-anchor="middle">${esc(d.tick)}</text></g>`;
+      s += `<rect class="hit" data-i="${i}" x="${i * step}" y="0" width="${step}" height="${ih}"/>`;
+    });
+    s += `</g></svg>`;
+    el.innerHTML = s;
+    el.querySelectorAll('.hit').forEach((r) => {
+      r.addEventListener('mousemove', (e) => showTip(e, tip(items[+r.dataset.i])));
+      r.addEventListener('mouseleave', hideTip);
+    });
+  }
+  function niceCeil(v) {
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    for (const k of [1, 1.5, 2, 3, 5, 7.5, 10]) if (k * p >= v) return k * p;
+    return 10 * p;
+  }
+
+  function sparkline(values) {
+    const W = 96, H = 24, max = Math.max(1, ...values);
+    const pts = values.map((v, i) => [(i / (values.length - 1)) * W, H - 1 - (v / max) * (H - 2)]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+    return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">` +
+      `<path class="area" d="${line}L${W},${H}L0,${H}Z"/><path d="${line}"/></svg>`;
+  }
+
+  function render() {
+    if (!data) return;
+    const { totals, sessions } = data;
+    const active = sessions.filter((s) => s.active);
+    const burn = active.reduce((a, s) => a + s.burnPerMin, 0);
+
+    $('t-active').textContent = active.length;
+    $('t-active-meta').textContent = `idle after ${data.activeMinutes} min without activity`;
+    $('t-today').textContent = fmt(totals.today.total);
+    $('t-today-meta').textContent = `${fmt(totals.today.output)} output · ${usd(totals.today.cost)} est.`;
+    $('t-5h').textContent = fmt(totals.window5h.total);
+    $('t-5h-meta').textContent = `${fmt(totals.window5h.output)} output · ${usd(totals.window5h.cost)} est.`;
+    $('t-burn').textContent = fmt(burn);
+
+    barChart($('minute-chart'), data.perMinute.map((d, i) => {
+      const date = new Date(d.t);
+      const minsAgo = data.perMinute.length - 1 - i;
+      return { v: d.tokens, d, date, tick: minsAgo ? `-${minsAgo}m` : 'now' };
+    }), {
+      snap: 10,
+      label: 'Tokens per minute over the last hour',
+      tip: (it) => `<b>${it.date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</b>` +
+        rows([['Tokens', full(it.d.tokens)], ['Output', full(it.d.output)], ['Est. cost', usd(it.d.cost)]]),
+    });
+
+    barChart($('day-chart'), data.days.map((d) => {
+      const date = new Date(d.day + 'T00:00');
+      return { v: d.total, d, date, tick: date.toLocaleDateString([], { month: 'short', day: 'numeric' }) };
+    }), {
+      height: 200,
+      label: 'Daily tokens for the last 14 days',
+      tip: (it) => `<b>${it.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</b>` +
+        rows([['Total', full(it.d.total)], ['Input', full(it.d.input)], ['Output', full(it.d.output)],
+              ['Cache read', full(it.d.cacheRead)], ['Cache write', full(it.d.cacheWrite)], ['Est. cost', usd(it.d.cost)]]),
+    });
+
+    const startOfToday = new Date().setHours(0, 0, 0, 0);
+    const shown = sessions.filter((s) => filter === 'all' || (filter === 'active' ? s.active : s.lastAt >= startOfToday));
+    $('sessions').innerHTML = shown.length ? shown.slice(0, 200).map((s) => `
+      <tr>
+        <td><div class="sess">
+          <span class="dot ${s.active ? 'live' : ''}" title="${s.active ? 'Active' : 'Idle'}"></span>
+          <div style="min-width:0">
+            <div class="sess-title" title="${esc(s.title || s.id)}">${esc(s.title || 'Untitled session')}</div>
+            <div class="sess-meta">${esc(shortPath(s.project) || '—')}${s.branch ? ' · ' + esc(s.branch) : ''} · ${esc(s.lastModel)} · ${ago(s.lastAt)}${s.subagentMessages ? ` · ${s.subagentMessages} subagent msgs` : ''}</div>
+          </div>
+        </div></td>
+        <td>${sparkline(s.recent)}</td>
+        <td class="num">${s.active ? fmt(s.burnPerMin) : '<span class="muted">—</span>'}</td>
+        <td class="num">${fmt(s.totals.input)}</td>
+        <td class="num">${fmt(s.totals.output)}</td>
+        <td class="num">${fmt(s.totals.cacheRead)}</td>
+        <td class="num">${fmt(s.totals.cacheWrite)}</td>
+        <td class="num"><b>${fmt(s.totals.total)}</b></td>
+        <td class="num">${usd(s.totals.cost)}</td>
+      </tr>`).join('') :
+      `<tr><td colspan="9" class="empty">${filter === 'active' ? 'No sessions active in the last ' + data.activeMinutes + ' minutes.' : 'No sessions in this range.'}</td></tr>`;
+
+    $('models').innerHTML = data.models.length ? data.models.map((m) => `
+      <tr><td>${esc(m.model)}</td><td class="num">${fmt(m.output)}</td><td class="num">${fmt(m.total)}</td>
+      <td class="num">${m.priced ? usd(m.cost) : '<span class="muted" title="No price on file for this model">n/a</span>'}</td></tr>`).join('') :
+      `<tr><td colspan="4" class="empty">No usage recorded yet.</td></tr>`;
+
+    $('footer').innerHTML = `Reading <code>${esc(data.source)}</code> · ${data.filesWatched} transcript files · last ${data.historyDays} days. ` +
+      `Costs are estimates at Claude API list prices; on a Pro or Max plan you're not billed per token, so read them as API-equivalent value. ` +
+      `Only sessions whose transcripts are on this machine appear here.`;
+  }
+
+  document.querySelectorAll('[data-filter]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.filter === filter));
+    b.addEventListener('click', () => {
+      filter = b.dataset.filter;
+      try { localStorage.setItem('claude-usage-filter', filter); } catch {}
+      document.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render();
+    });
+  });
+
+  let lastUpdate = 0;
+  function connect() {
+    const es = new EventSource('/events');
+    es.onmessage = (e) => {
+      data = JSON.parse(e.data);
+      lastUpdate = Date.now();
+      $('dot').className = 'dot live';
+      render();
+    };
+    es.onerror = () => {
+      $('dot').className = 'dot down';
+      $('status').textContent = 'Disconnected — retrying…';
+    };
+  }
+  setInterval(() => {
+    if (lastUpdate && $('dot').classList.contains('live')) $('status').textContent = `Live · updated ${ago(lastUpdate)}`;
+  }, 1000);
+  let resizeTimer;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+  connect();
+})();
+</script>
+</body>
+</html>
