@@ -105,7 +105,8 @@
   .spark{display:block;}
   .spark path{fill:none;stroke:var(--series-1);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;}
   .spark .area{fill:color-mix(in srgb,var(--series-1) 15%,transparent);stroke:none;}
-  .empty{color:var(--text-muted);padding:24px 0;text-align:center;}
+  .empty{color:var(--text-muted);padding:24px 0;text-align:center;white-space:normal;}
+  .link{font:inherit;background:none;border:0;padding:0;color:var(--series-1);cursor:pointer;text-decoration:underline;}
   footer{color:var(--text-muted);font-size:12px;line-height:1.6;}
   code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}
 </style>
@@ -257,6 +258,21 @@
       `<path class="area" d="${line}L${W},${H}L0,${H}Z"/><path d="${line}"/></svg>`;
   }
 
+  function emptyMessage() {
+    if (!data.filesWatched) {
+      return `No Claude Code transcripts found in <code>${esc(data.source)}</code>. ` +
+        `This page only sees sessions run on this computer (terminal, IDE or desktop app); ` +
+        `cloud sessions and claude.ai chats are stored elsewhere.`;
+    }
+    if (!data.sessions.length) {
+      return `Found ${data.filesWatched} transcript files but no token usage in them yet.`;
+    }
+    const msg = filter === 'active'
+      ? `No sessions used tokens in the last ${data.activeMinutes} minutes.`
+      : 'No sessions today.';
+    return `${msg} <button type="button" class="link" data-show-all>Show all ${data.sessions.length} session${data.sessions.length === 1 ? "" : "s"}</button>`;
+  }
+
   function render() {
     if (!data) return;
     const { totals, sessions } = data;
@@ -313,7 +329,7 @@
         <td class="num"><b>${fmt(s.totals.total)}</b></td>
         <td class="num">${usd(s.totals.cost)}</td>
       </tr>`).join('') :
-      `<tr><td colspan="9" class="empty">${filter === 'active' ? 'No sessions active in the last ' + data.activeMinutes + ' minutes.' : 'No sessions in this range.'}</td></tr>`;
+      `<tr><td colspan="9" class="empty">${emptyMessage()}</td></tr>`;
 
     $('models').innerHTML = data.models.length ? data.models.map((m) => `
       <tr><td>${esc(m.model)}</td><td class="num">${fmt(m.output)}</td><td class="num">${fmt(m.total)}</td>
@@ -333,6 +349,10 @@
       document.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       render();
     });
+  });
+
+  $('sessions').addEventListener('click', (e) => {
+    if (e.target.closest('[data-show-all]')) document.querySelector('[data-filter="all"]').click();
   });
 
   let lastUpdate = 0;
